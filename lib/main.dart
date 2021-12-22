@@ -1,27 +1,46 @@
+import 'dart:convert';
+import 'dart:ui';
 import 'package:ejemplo_1/models/producto.dart';
+import 'package:ejemplo_1/models/weekday.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:ejemplo_1/models/semana.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  //await Firebase.initializeApp();
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  final Future<FirebaseApp> _fbApp = Firebase.initializeApp();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        primaryIconTheme: IconThemeData(
-          color: Color(0xFF737373),
+        debugShowCheckedModeBanner: false,
+        title: 'Flutter Demo',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          primaryIconTheme: IconThemeData(
+            color: Color(0xFF737373),
+          ),
         ),
-      ),
-      home: MyHomePage(title: 'Tú Lista'),
-    );
+        home: FutureBuilder(
+            future: _fbApp,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Text("Salio un error");
+              } else if (snapshot.hasData) {
+                return MyHomePage(title: 'Tú Lista');
+              } else {
+                return Center(child: CircularProgressIndicator());
+              }
+            }));
   }
 }
 
@@ -36,13 +55,12 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   double progressValue = 0.0;
   int analysis = 0;
-  // las variables 
-  bool _estadodelBoton = false;
+  // las variables
   var _indexbuilder;
   var _estadodelshowdialog;
   var now = new DateTime.now();
   var formatFecha = new DateFormat('dd MMM, ' 'yyyy');
-  
+
   final _formKey = GlobalKey<FormState>();
 
   var nombreController = TextEditingController();
@@ -55,42 +73,53 @@ class _MyHomePageState extends State<MyHomePage> {
     Producto(
         id: DateTime.now().toString(),
         nombre: "Zapatilla",
-        fecha: "2 de Oct, 2021",
+        fecha: "15 Nov, 2021",
         precio: 202),
     Producto(
         id: DateTime.now().toString(),
         nombre: "Chanclas",
-        fecha: "2 de Oct, 2021",
+        fecha: "16 Nov, 2021",
         precio: 100),
     Producto(
         id: DateTime.now().toString(),
         nombre: "Pelota",
-        fecha: "2 de Oct, 2021",
+        fecha: "17 Nov, 2021",
         precio: 50),
     Producto(
         id: DateTime.now().toString(),
         nombre: "Zapatilla",
-        fecha: "24 Oct, 2021",
+        fecha: "20 Nov, 2021",
         precio: 202),
   ];
 
   List<Producto> listadeproductos = <Producto>[];
 
-  final List<Semana> diaSemana = <Semana>[
-    Semana(dia: "Lunes", fecha: "2 de Oct, 2021"),
-    Semana(dia: "Martes", fecha: "2 de Oct, 2021"),
-    Semana(dia: "Miércoles", fecha: "20 Oct, 2021"),
-    Semana(dia: "Jueves", fecha: "02 de Oc, 2021"),
-    Semana(dia: "Viernes", fecha: "3 de Oct"),
-    Semana(dia: "Sábado", fecha: "02 de Oct"),
-    Semana(dia: "Domingo", fecha: "24 Oct, 2021"),
+  List<Semana> diaSemana = <Semana>[
+    /*Semana(dia: "Lunes", fecha: "2 de Oct, 2021", selected: false, cantidad: 2),
+    Semana(dia: "Martes", fecha: "2 de Oct, 2021", selected: false, cantidad: 3),
+    Semana(dia: "Miércoles", fecha: "20 Oct, 2021", selected: false, cantidad: 4),
+    Semana(dia: "Jueves", fecha: "02 de Oc, 2021", selected: false, cantidad: 5),
+    Semana(dia: "Viernes", fecha: "05 Nov, 2021", selected: false, cantidad: 2),
+    Semana(dia: "Sábado", fecha: "02 de Oct", selected: false, cantidad: 4),
+    Semana(dia: "Domingo", fecha: "24 Oct, 2021", selected: false, cantidad: 2),*/
   ];
 
   @override
   void initState() {
-    if(_estadodelBoton = false) {
-      _estadodelBoton = Colors.white as bool;
+    String localeName = "es_ES";
+    initializeDateFormatting(localeName);
+    //print(localeName);
+    printFirebase();
+    for (var item in ObtenerDias()) {
+      //print("${item.dia.toString()} :fecha ${item.fecha.toString()}");
+      diaSemana.add(Semana(
+          dia: item.dia.toString(),
+          fecha: item.fecha.toString(),
+          selected: false,
+          cantidad: 0,
+          progress: 0));
     }
+
     //Se obtine la fecha actual
     String fechaActual = formatFecha.format(now);
     //Se da el valor incial de la fecha actual
@@ -99,15 +128,57 @@ class _MyHomePageState extends State<MyHomePage> {
     listadeproductos = listageneral
         .where((producto) => producto.fecha!.contains(fechaActual))
         .toList();
+
+    /*diaSemana.forEach((e) {
+      e.fecha = DateFormat('EEEE').format(now);
+    });*/
+
+    diaSemana.forEach((e) {
+      if (listageneral
+              .where((element) => element.fecha!.contains(e.fecha.toString()))
+              .length >
+          0) {
+        e.cantidad = listageneral
+            .where((element) => element.fecha!.contains(e.fecha.toString()))
+            .length;
+        e.progress = e.cantidad! / 5;
+      } else {
+        e.cantidad = 0;
+        e.progress = 0;
+      }
+
+      if (e.fecha == fechaActual) {
+        e.selected = true;
+      } else {
+        e.selected = false;
+      }
+    });
     /*Al progressIndicator le indico que sea menor-igual que uno y que el valor del progressValue sea igual a la lista de productos 
     entre 5 para que avance de 2 en 2 hasta llegar a 10*/
-    if (progressValue <= 1) {
+    /*if (progressValue <= 1) {
       progressValue = (listadeproductos.length) / 5;
-    }
+    }*/
     // el analisys es el indicador de progreso, le indico que no puede ser mayor que 5, y que es igual a la cantidad de elementos que hay en la lista de productos
     if (analysis <= 5) {
       analysis = listadeproductos.length;
     }
+  }
+
+  List<Weekday> ObtenerDias() {
+    final now = DateTime.now();
+    final firstDayOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    //print(firstDayOfWeek);
+    //var startFrom = now.subtract(Duration(days: now.weekday-1));
+
+    //return List.generate(7, (i) => '${startFrom.add(Duration(days: i)).day}').toList();
+
+    return List.generate(7, (index) => index)
+        .map((value) => Weekday(
+            fecha:
+                formatFecha.format(firstDayOfWeek.add(Duration(days: value))),
+            dia: DateFormat(DateFormat.WEEKDAY, "es_ES")
+                .format(firstDayOfWeek.add(Duration(days: value)))))
+        .toList();
   }
 
   // esta es la función volcar, que atrapa a los productos que tengan la misma fecha y los coloca en la lista de productos
@@ -131,27 +202,41 @@ class _MyHomePageState extends State<MyHomePage> {
   void fecha(index) {
     print("${diaSemana[index].dia}");
     volcar_listaproductos(diaSemana[index].fecha.toString());
-    if(_estadodelBoton = true) {
-      _estadodelBoton = Colors.blue as bool;
-    } 
+    setState(() {
+      diaSemana.forEach((e) {
+        e.selected = false;
+      });
+      diaSemana[index].selected = true;
+    });
   }
+
   //esta función tiene varias condicionales en la que indico que el progressindicator tiene que ser menor que 1 o que el analysis sea menor que 5
   void _guardar() {
     setState(() {
-      if (progressValue < 1 || analysis < 5) {
+      var fechaEdit = diaSemana
+          .firstWhere((el) => el.fecha == fechaController.text.toString());
+      if (fechaEdit.progress! < 1 || fechaEdit.cantidad! < 5) {
         //  _formKey que es el identificador de los campos de formulario que quiero validar, le indico que tiene que validar su estado actual
         if (_formKey.currentState!.validate()) {
           // 3 tipos de controladores, nombre, fecha y precio, los tres en texto no tienen que estar vacios y de esa manera se podrá guardar lo que escriba como un prodcuto más
           if (nombreController.text.isNotEmpty &&
               fechaController.text.isNotEmpty &&
               precioController.text.isNotEmpty) {
-            listageneral.add(
+            /*listageneral.add(
               Producto(
                   id: DateTime.now().toString(),
                   fecha: fechaController.text,
                   precio: int.parse(precioController.text),
                   nombre: nombreController.text),
-            );
+            );*/
+            DatabaseReference _cammpo_fecha_Ref =
+                FirebaseDatabase.instance.reference().child("productos");
+            _cammpo_fecha_Ref.push().set({
+              'id': DateTime.now().toString(),
+              'nombre': nombreController.text,
+              'fecha': fechaController.text,
+              'precio': int.parse(precioController.text),
+            });
             // le indico que volque los productos y que la fecha la saque del controlador para que los pueda identificar
             volcar_listaproductos(fechaController.text);
             // luego de seguir esas funciones, le indico que salga del ShowDialog  y que limpie los TextFormField
@@ -161,13 +246,35 @@ class _MyHomePageState extends State<MyHomePage> {
           }
         }
         // el progressvalue avanza 0.2 cada que guardo un nuevo producto
-        progressValue = progressValue + 0.2;
+        //progressValue = progressValue + 0.2;
         // el analysis avanza 1 cada que guardo
-        analysis += 1;
+        //analysis += 1;
+        diaSemana.forEach((e) {
+          if (listageneral
+                  .where(
+                      (element) => element.fecha!.contains(e.fecha.toString()))
+                  .length >
+              0) {
+            e.cantidad = listageneral
+                .where((element) => element.fecha!.contains(e.fecha.toString()))
+                .length;
+            e.progress = e.cantidad! / 5;
+          } else {
+            e.cantidad = 0;
+            e.progress = 0;
+          }
+
+          if (e.fecha == fechaController.text) {
+            e.selected = true;
+          } else {
+            e.selected = false;
+          }
+        });
       }
     });
   }
-  // este es el widget de la lista de la semana 
+
+  // este es el widget de la lista de la semana
   Widget ListHorizontal() {
     return ListView.separated(
       itemCount: diaSemana.length,
@@ -180,11 +287,11 @@ class _MyHomePageState extends State<MyHomePage> {
       },
       itemBuilder: (BuildContext context, int index) {
         return Container(
-          width: 102,
+          width: 110,
           child: Card(
             child: Center(
               child: MaterialButton(
-                color: _estadodelBoton ? Colors.blue : Colors.white,
+                color: diaSemana[index].selected! ? Colors.blue : Colors.white,
                 onPressed: () => fecha(index),
                 child: Column(
                   children: <Widget>[
@@ -197,14 +304,14 @@ class _MyHomePageState extends State<MyHomePage> {
                       child: Stack(
                         children: <Widget>[
                           Center(
-                            child: Text("$analysis/5"),
+                            child: Text("${diaSemana[index].cantidad}/5"),
                           ),
                           Center(
                             child: Container(
                               width: 45,
                               height: 45,
                               child: CircularProgressIndicator(
-                                value: progressValue,
+                                value: diaSemana[index].progress,
                                 strokeWidth: 2.8,
                                 backgroundColor: Color(0xFFE6E7E5),
                               ),
@@ -216,7 +323,14 @@ class _MyHomePageState extends State<MyHomePage> {
                     SizedBox(
                       height: 8,
                     ),
-                    Text("${diaSemana[index].dia}"), // le indico la posición de día
+                    Text(
+                        "${diaSemana[index].dia}"), // le indico la posición de día
+                    Text(
+                      "${diaSemana[index].fecha}",
+                      style: TextStyle(
+                        fontSize: 9,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -226,7 +340,8 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
-  // es casi similar a la función gurdar 
+
+  // es casi similar a la función gurdar
   void _actualizaredit(index) {
     setState(() {
       // valido el estado actual de los campos de texto
@@ -235,12 +350,12 @@ class _MyHomePageState extends State<MyHomePage> {
         if (nombreController.text.isNotEmpty &&
             fechaController.text.isNotEmpty &&
             precioController.text.isNotEmpty) {
-        // la variable producto_id que es igual a la id que contiene el producto que seleccione y que estan dentro de la lista general
+          // la variable producto_id que es igual a la id que contiene el producto que seleccione y que estan dentro de la lista general
           var producto_id = listadeproductos[index].id.toString();
-        // vamos a ubicar la posición del elemento donde la id tiene que ser la misma que la de los elementos de lista de productos 
+          // vamos a ubicar la posición del elemento donde la id tiene que ser la misma que la de los elementos de lista de productos
           var index_general =
               listageneral.indexWhere((producto) => producto.id == producto_id);
-        // en esta parte se da a escribir los nuevos valores
+          // en esta parte se da a escribir los nuevos valores
           listageneral[index_general] = Producto(
               id: producto_id,
               fecha: fechaController.text,
@@ -257,13 +372,15 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
   }
+
   // la función de incrementar
   void _incrementCounter() {
-    //limpia 
+    var fechaSele = diaSemana.firstWhere((element) => element.selected == true);
+    //limpia
     nombreController.clear();
     precioController.clear();
-    // vemos los cambios en el campo de textp, en este caso inicia con la fecha actual
-    fechaController = TextEditingController(text: formatFecha.format(now));
+    // vemos los cambios en el campo de texto, en este caso la fecha se va actualizando de acuerdo al día que he seleccionado
+    fechaController = TextEditingController(text: fechaSele.fecha);
     // al estar en true me va a mostrar el boton de guardar y cuando este en false este en false
     _estadodelshowdialog = true;
     // mostrar el ShowDialog
@@ -274,6 +391,7 @@ class _MyHomePageState extends State<MyHomePage> {
       //);
     });
   }
+
   // el widget show dialog
   void _mostrar_solo_showDialog() {
     showModalBottomSheet<void>(
@@ -381,9 +499,10 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
+
   // la función de editar
   void _editProduct(int index) {
-    // me muestra el boton actualizar 
+    // me muestra el boton actualizar
     _estadodelshowdialog = false;
     // meto el index dentro de una variable
     _indexbuilder = index;
@@ -394,10 +513,11 @@ class _MyHomePageState extends State<MyHomePage> {
         TextEditingController(text: "${listadeproductos[index].nombre}");
     precioController =
         TextEditingController(text: "${listadeproductos[index].precio}");
-      // abrimos el showdialog con todo lleno listo para la edición
+    // abrimos el showdialog con todo lleno listo para la edición
     _mostrar_solo_showDialog();
     setState(() {});
   }
+
   // función que es parte del mensaje de advertencia que sale cuando queremos eliminar algo
   void _advertenciadelete(BuildContext context, int index) {
     showDialog(
@@ -451,6 +571,7 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
+
   // la función de confirmar elimnar
   void _eliminar(int index) {
     setState(() {
@@ -466,8 +587,28 @@ class _MyHomePageState extends State<MyHomePage> {
       // salimos del showdialog
       Navigator.pop(context);
       // tanto el analysis como el progressValue dismunuyen en su valor
-      analysis -= 1;
-      progressValue = progressValue - 0.2;
+      //analysis -= 1;
+      //progressValue = progressValue - 0.2;
+      diaSemana.forEach((e) {
+        if (listageneral
+                .where((element) => element.fecha!.contains(e.fecha.toString()))
+                .length >
+            0) {
+          e.cantidad = listageneral
+              .where((element) => element.fecha!.contains(e.fecha.toString()))
+              .length;
+          e.progress = e.cantidad! / 5;
+        } else {
+          e.cantidad = 0;
+          e.progress = 0;
+        }
+
+        if (e.fecha == fechaController.text) {
+          e.selected = true;
+        } else {
+          e.selected = false;
+        }
+      });
     });
   }
   /* esta función es la contra del initState, este termina el ciclo, el init State inicializa, 
@@ -480,9 +621,47 @@ class _MyHomePageState extends State<MyHomePage> {
     nombreController.dispose();
     super.dispose();
   }
+
+  void printFirebase() {
+    FirebaseDatabase.instance.reference().child("productos").once().then((DataSnapshot snapshot) {
+      //print('Data : ${snapshot.value}');
+      
+      print("==========================================================");
+      print(snapshot.value);
+      
+      listageneral = [];
+      snapshot.value.forEach((k,values){
+        print(values);
+        listageneral.add(
+          Producto(
+              id: values["id"],
+              fecha: values["fecha"],
+              precio: values["precio"],
+              nombre: values["nombre"], 
+          ),
+        );
+      });
+      
+      volcar_listaproductos(fechaController.text);
+       /* Map<dynamic, dynamic> values = snapshot.value;
+        values.forEach((key, values) {
+          print(values["nombre"]);
+          /*listageneral.add(
+          Producto(
+              id: values["id"],
+              fecha: values["fecha"],
+              precio: values["precio"],
+              nombre: values["nombre"], 
+          ),
+        ); */
+        });*/
+    });
+  }
+
   // este es el widget principal donde se coloca el diseño y se llaman a las funciones creadas
   @override
   Widget build(BuildContext context) {
+    //printFirebase();
     return Scaffold(
       drawer: Drawer(),
       appBar: AppBar(
