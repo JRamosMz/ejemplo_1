@@ -230,12 +230,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   nombre: nombreController.text),
             );*/
             DatabaseReference _cammpo_fecha_Ref =
-                FirebaseDatabase.instance.reference().child("productos");
-            _cammpo_fecha_Ref.push().set({
-              'id': DateTime.now().toString(),
+                FirebaseDatabase.instance.reference().child("productos").push();
+            _cammpo_fecha_Ref.set({
+              'id': _cammpo_fecha_Ref.key,
               'nombre': nombreController.text,
               'fecha': fechaController.text,
-              'precio': int.parse(precioController.text),
+              'precio': int.parse(precioController.text)
             });
             // le indico que volque los productos y que la fecha la saque del controlador para que los pueda identificar
             volcar_listaproductos(fechaController.text);
@@ -243,6 +243,7 @@ class _MyHomePageState extends State<MyHomePage> {
             Navigator.pop(context);
             nombreController.clear();
             precioController.clear();
+            printFirebase();
           }
         }
         // el progressvalue avanza 0.2 cada que guardo un nuevo producto
@@ -578,6 +579,8 @@ class _MyHomePageState extends State<MyHomePage> {
       // establecemos dos variables que contienen la id y la fecha de la lista de productos
       var producto_id = listadeproductos[index].id.toString();
       var producto_fecha = listadeproductos[index].fecha.toString();
+      var collection = FirebaseDatabase.instance.reference().child("productos");
+      collection.child(producto_id).remove();
       // removemos el producto seleccionado de todos lados
       listageneral.removeWhere((producto) => producto.id == producto_id);
       //listadeproductos.removeAt(index);
@@ -623,27 +626,31 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void printFirebase() {
-    FirebaseDatabase.instance.reference().child("productos").once().then((DataSnapshot snapshot) {
+    FirebaseDatabase.instance
+        .reference()
+        .child("productos")
+        .once()
+        .then((DataSnapshot snapshot) {
       //print('Data : ${snapshot.value}');
-      
+
       print("==========================================================");
       print(snapshot.value);
-      
+
       listageneral = [];
-      snapshot.value.forEach((k,values){
+      snapshot.value.forEach((k, values) {
         print(values);
         listageneral.add(
           Producto(
-              id: values["id"],
-              fecha: values["fecha"],
-              precio: values["precio"],
-              nombre: values["nombre"], 
+            id: values["id"],
+            fecha: values["fecha"],
+            precio: values["precio"],
+            nombre: values["nombre"],
           ),
         );
       });
-      
+
       volcar_listaproductos(fechaController.text);
-       /* Map<dynamic, dynamic> values = snapshot.value;
+      /* Map<dynamic, dynamic> values = snapshot.value;
         values.forEach((key, values) {
           print(values["nombre"]);
           /*listageneral.add(
